@@ -11,8 +11,13 @@ import os
 import sys
 import requests
 import json
+import clts_pcp as clts
+
+tstart=clts.getts()
+
 
 def detect_environment():
+    clts.elapt["Detect Environment"]=clts.deltat(tstart)
     if "COLAB_RELEASE_TAG" in os.environ:
         return "colab"
     elif "RENDER" in os.environ:
@@ -23,6 +28,7 @@ def detect_environment():
         return "linux"
 
 env = detect_environment()
+clts.elapt[f"Environment Detected: {env}"]=clts.deltat(tstart)
 print("Running in:", env)
 
 if env == "colab":
@@ -41,16 +47,25 @@ else:
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
+
+clts.setcontext(f'IPMA Weather Station Data Retrieval - Environment: {env}')
+
+
+
 url = 'https://api.ipma.pt/open-data/observation/meteorology/stations/obs-surface.geojson'
 
+
+clts.elapt["Start Data Retrieval"]=clts.deltat(tstart)
 response = requests.get(url)
 
 if response.status_code == 200:
   data = response.json()
   print("Data retrieved successfully")
   print(f"Retrieved data from {len(data['features'])} stations")
+  clts.elapt[f"Data Retrieved Successfully From {len(data['features'])} Stations"]=clts.deltat(tstart)
 else:
   print(f"Failed to retrieve data {response.status_code}")
+  clts.elapt[f"Data Retrieval Failed with Status Code {response.status_code}"]=clts.deltat(tstart)
 
 for d in data['features']:
   if d['properties']['idEstacao'] == 1200545:
@@ -58,15 +73,18 @@ for d in data['features']:
 
 print(single_station_data)
 
+toemail = clts.listtimes()
+print(toemail)
+
 if env == "render":
     import resend
     resend.api_key = RESEND_API_KEY
     try:
         result = resend.Emails.send({
             "from": "Acme <onboarding@resend.dev>",
-            "to": ["cmmaiaxavier@gmail.com"],
+            "to": ["xavierkooijman@gmail.com"],
             "subject": "Hello from Resend Python!",
-            "html": "<h1>Welcome!</h1><p>This email was sent using Resend's Python SDK.</p>",
+            "html": toemail,
         })
 
         print("Email sent successfully!")
@@ -85,7 +103,7 @@ else:
     receiver = "xavierkooijman@gmail.com"
 
     try:
-        msg = MIMEText("Hello! This email was sent from Python.")
+        msg = MIMEText(toemail, "html")
         msg["Subject"] = "Python Email Test"
         msg["From"] = EMAIL_FROM
         msg["To"] = receiver
