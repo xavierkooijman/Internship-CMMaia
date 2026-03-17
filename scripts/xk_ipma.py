@@ -27,18 +27,18 @@ print("Running in:", env)
 
 if env == "colab":
     from google.colab import userdata
-    EMAIL = userdata.get("EMAIL")
+    EMAIL_FROM = userdata.get("EMAIL")
     EMAIL_PASSWORD = userdata.get("EMAIL_PASSWORD")
 
 elif env == "render":
-    EMAIL = os.getenv("EMAIL"),
-    EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+    EMAIL_FROM = os.getenv("EMAIL_FROM")
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
 else:
     from dotenv import load_dotenv
     load_dotenv()
 
-    EMAIL = os.getenv("EMAIL")
+    EMAIL_FROM = os.getenv("EMAIL_FROM")
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 url = 'https://api.ipma.pt/open-data/observation/meteorology/stations/obs-surface.geojson'
@@ -58,24 +58,43 @@ for d in data['features']:
 
 print(single_station_data)
 
-import smtplib
-from email.mime.text import MIMEText
+if env == "render":
+    import resend
+    resend.api_key = RESEND_API_KEY
+    try:
+        result = resend.Emails.send({
+            "from": "Acme <onboarding@resend.dev>",
+            "to": ["cmmaiaxavier@gmail.com"],
+            "subject": "Hello from Resend Python!",
+            "html": "<h1>Welcome!</h1><p>This email was sent using Resend's Python SDK.</p>",
+        })
 
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-receiver = "xavierkooijman@gmail.com"
+        print("Email sent successfully!")
+        print(f"Email ID: {result['id']}") 
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        exit(1)
 
-try:
-  msg = MIMEText("Hello! This email was sent from Python.")
-  msg["Subject"] = "Python Email Test"
-  msg["From"] = EMAIL
-  msg["To"] = receiver
+else:
+   
+    import smtplib
+    from email.mime.text import MIMEText
 
-  with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-    server.starttls()
-    server.login(EMAIL, EMAIL_PASSWORD)
-    server.sendmail(EMAIL, receiver, msg.as_string())
+    SMTP_SERVER = "smtp.gmail.com"
+    SMTP_PORT = 587
+    receiver = "xavierkooijman@gmail.com"
 
-  print("Email sent!")
-except Exception as e:
-  print(f"Error sending email: {e}")
+    try:
+        msg = MIMEText("Hello! This email was sent from Python.")
+        msg["Subject"] = "Python Email Test"
+        msg["From"] = EMAIL_FROM
+        msg["To"] = receiver
+
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_FROM, EMAIL_PASSWORD)
+            server.sendmail(EMAIL_FROM, receiver, msg.as_string())
+
+        print("Email sent!")
+    except Exception as e:
+        print(f"Error sending email: {e}")
