@@ -7,6 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/18iD_1z0xWYYwoeEPngCIk9ysaZ8uGaqU
 """
 #!pip install clts_pcp --quiet
+#!pip install crate --quiet
 import os
 import sys
 import requests
@@ -33,19 +34,24 @@ print("Running in:", env)
 
 if env == "colab":
     from google.colab import userdata
+    USER = userdata.get("USER")
     EMAIL_FROM = userdata.get("EMAIL")
     EMAIL_PASSWORD = userdata.get("EMAIL_PASSWORD")
 
 elif env == "render":
+    USER = os.getenv("USER")
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+    DB_LIST = json.load(open(f"/etc/secrets/{USER}-dblist.json"))["databases"]
 
 else:
     from dotenv import load_dotenv
     load_dotenv()
 
+    USER = os.getenv("USER")
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+    DB_LIST = json.load(open(f"{USER}-dblist.json"))["databases"]
 
 
 clts.setcontext(f'IPMA Weather Station Data Retrieval - Environment: {env}')
@@ -72,6 +78,79 @@ for d in data['features']:
     single_station_data = d
 
 print(single_station_data)
+
+for db in DB_LIST:
+    print(f"Processing database: {db}")
+    status = "nok"
+    clts.elapt[f"Connecting to {db}"] = clts.deltat(tstart)
+
+    try:
+        if env == "render":
+            credentials_path = f"/etc/secrets/{USER}-{db}.json"
+            dbcreds = json.load(open(credentials_path)) 
+        elif env == "colab":
+            print("Colab env")
+        else:
+            credentials_path = f"secrets/{USER}-{db}.json"
+            dbcreds = json.load(open(credentials_path))
+
+
+        if dbcreds["dbms"] == "crate":
+            sql = """
+            INSERT INTO ipma (
+                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
+                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
+                idDireccVento, descDirVento, precAcumulada
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            """
+
+            values = (
+                env,              
+                'IPMA',                        
+                single_station_data['properties']['idEstacao'],
+                single_station_data['properties']['localEstacao'],
+                single_station_data['geometry']['coordinates'][1],  
+                single_station_data['geometry']['coordinates'][0], 
+                single_station_data['properties']['time'],        
+                single_station_data['properties']['temperatura'],
+                single_station_data['properties']['radiacao'],
+                single_station_data['properties']['humidade'],
+                single_station_data['properties']['pressao'],
+                single_station_data['properties']['intensidadeVento'],
+                single_station_data['properties']['idDireccVento'],
+                single_station_data['properties']['descDirVento'],
+                single_station_data['properties']['precAcumulada']
+            )
+
+            from crate import client
+            clts.elapt[f"Connecting to {db}"]=clts.deltat(tstart)
+            connection = client.connect(dbcreds["host"], username=dbcreds["username"], password=dbcreds["password"],             verify_ssl_cert=True,
+ timeout=10)
+            cursor = connection.cursor()
+            print(f"Connected to {db} successfully")
+            clts.elapt[f"Connection to {db} Successful"]=clts.deltat(tstart)
+            status = "ok"
+    except Exception as e:
+        print(f"Error for {db}: {e}")
+        clts.elapt[f"Connection to {db} Failed, Error: {e}"]=clts.deltat(tstart)
+        continue
+
+    try:
+        if status == "ok":
+            cursor.execute(sql, values)
+            connection.commit()
+            print(f"Data inserted into {db} successfully")
+            clts.elapt[f"Data Inserted into {db} Successfully"]=clts.deltat(tstart)
+    except Exception as e:
+        print(f"Error inserting data into {db}: {e}")
+        clts.elapt[f"Data Insertion into {db} Failed, Error: {e}"]=clts.deltat(tstart)
+        continue
+
+    connection.close()
+    print(f"Connection to {db} closed")
+        
 
 toemail = clts.listtimes()
 print(toemail)
