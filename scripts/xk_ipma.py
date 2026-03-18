@@ -8,17 +8,19 @@ Original file is located at
 """
 #!pip install clts_pcp --quiet
 #!pip install crate --quiet
+#!pip install pymysql --quiet
+#!pip install cryptography --quiet
 import os
 import sys
 import requests
 import json
 import clts_pcp as clts
 
-tstart=clts.getts()
+tstart = clts.getts()
 
 
 def detect_environment():
-    clts.elapt["Detect Environment"]=clts.deltat(tstart)
+    clts.elapt["Detect Environment"] = clts.deltat(tstart)
     if "COLAB_RELEASE_TAG" in os.environ:
         return "colab"
     elif "RENDER" in os.environ:
@@ -28,8 +30,9 @@ def detect_environment():
     else:
         return "linux"
 
+
 env = detect_environment()
-clts.elapt[f"Environment Detected: {env}"]=clts.deltat(tstart)
+clts.elapt[f"Environment Detected: {env}"] = clts.deltat(tstart)
 print("Running in:", env)
 
 if env == "colab":
@@ -57,27 +60,46 @@ else:
 clts.setcontext(f'IPMA Weather Station Data Retrieval - Environment: {env}')
 
 
-
 url = 'https://api.ipma.pt/open-data/observation/meteorology/stations/obs-surface.geojson'
 
 
-clts.elapt["Start Data Retrieval"]=clts.deltat(tstart)
+clts.elapt["Start Data Retrieval"] = clts.deltat(tstart)
 response = requests.get(url)
 
 if response.status_code == 200:
-  data = response.json()
-  print("Data retrieved successfully")
-  print(f"Retrieved data from {len(data['features'])} stations")
-  clts.elapt[f"Data Retrieved Successfully From {len(data['features'])} Stations"]=clts.deltat(tstart)
+    data = response.json()
+    print("Data retrieved successfully")
+    print(f"Retrieved data from {len(data['features'])} stations")
+    clts.elapt[f"Data Retrieved Successfully From {len(data['features'])} Stations"] = clts.deltat(
+        tstart)
 else:
-  print(f"Failed to retrieve data {response.status_code}")
-  clts.elapt[f"Data Retrieval Failed with Status Code {response.status_code}"]=clts.deltat(tstart)
+    print(f"Failed to retrieve data {response.status_code}")
+    clts.elapt[f"Data Retrieval Failed with Status Code {response.status_code}"] = clts.deltat(
+        tstart)
 
 for d in data['features']:
-  if d['properties']['idEstacao'] == 1200545:
-    single_station_data = d
+    if d['properties']['idEstacao'] == 1200545:
+        single_station_data = d
 
 print(single_station_data)
+
+values = (
+    env,
+    'IPMA',
+    single_station_data['properties']['idEstacao'],
+    single_station_data['properties']['localEstacao'],
+    single_station_data['geometry']['coordinates'][1],
+    single_station_data['geometry']['coordinates'][0],
+    single_station_data['properties']['time'],
+    single_station_data['properties']['temperatura'],
+    single_station_data['properties']['radiacao'],
+    single_station_data['properties']['humidade'],
+    single_station_data['properties']['pressao'],
+    single_station_data['properties']['intensidadeVentoKM'],
+    single_station_data['properties']['idDireccVento'],
+    single_station_data['properties']['descDirVento'],
+    single_station_data['properties']['precAcumulada']
+)
 
 for db in DB_LIST:
     print(f"Processing database: {db}")
@@ -87,13 +109,12 @@ for db in DB_LIST:
     try:
         if env == "render":
             credentials_path = f"/etc/secrets/{USER}-{db}.json"
-            dbcreds = json.load(open(credentials_path)) 
+            dbcreds = json.load(open(credentials_path))
         elif env == "colab":
             print("Colab env")
         else:
             credentials_path = f"secrets/{USER}-{db}.json"
             dbcreds = json.load(open(credentials_path))
-
 
         if dbcreds["dbms"] == "crate":
             sql = """
@@ -106,51 +127,66 @@ for db in DB_LIST:
             )
             """
 
-            values = (
-                env,              
-                'IPMA',                        
-                single_station_data['properties']['idEstacao'],
-                single_station_data['properties']['localEstacao'],
-                single_station_data['geometry']['coordinates'][1],  
-                single_station_data['geometry']['coordinates'][0], 
-                single_station_data['properties']['time'],        
-                single_station_data['properties']['temperatura'],
-                single_station_data['properties']['radiacao'],
-                single_station_data['properties']['humidade'],
-                single_station_data['properties']['pressao'],
-                single_station_data['properties']['intensidadeVento'],
-                single_station_data['properties']['idDireccVento'],
-                single_station_data['properties']['descDirVento'],
-                single_station_data['properties']['precAcumulada']
-            )
-
             from crate import client
-            clts.elapt[f"Connecting to {db}"]=clts.deltat(tstart)
-            connection = client.connect(dbcreds["host"], username=dbcreds["username"], password=dbcreds["password"],             verify_ssl_cert=True,
- timeout=10)
+            clts.elapt[f"Connecting to {db}"] = clts.deltat(tstart)
+            connection = client.connect(dbcreds["host"], username=dbcreds["username"],
+                                        password=dbcreds["password"],             verify_ssl_cert=True, timeout=10)
             cursor = connection.cursor()
             print(f"Connected to {db} successfully")
-            clts.elapt[f"Connection to {db} Successful"]=clts.deltat(tstart)
+            clts.elapt[f"Connection to {db} Successful"] = clts.deltat(tstart)
+            status = "ok"
+
+        elif dbcreds["dbms"] == "mysql":
+            sql = """
+                        INSERT INTO ipma (
+                                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
+                                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
+                                idDireccVento, descDirVento, precAcumulada
+                        ) VALUES (
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        )
+                        """
+            import pymysql
+            clts.elapt[f"Connecting to {db}"] = clts.deltat(tstart)
+            connection = pymysql.connect(
+                charset="utf8mb4",
+                connect_timeout=10,
+                cursorclass=pymysql.cursors.DictCursor,
+                database=dbcreds["database"],
+                host=dbcreds["host"],
+                password=dbcreds["password"],
+                read_timeout=10,
+                port=dbcreds["port"],
+                user=dbcreds["username"],
+                write_timeout=10,
+            )
+            cursor = connection.cursor()
+            print(f"Connected to {db} successfully")
+            clts.elapt[f"Connection to {db} Successful"] = clts.deltat(tstart)
             status = "ok"
     except Exception as e:
         print(f"Error for {db}: {e}")
-        clts.elapt[f"Connection to {db} Failed, Error: {e}"]=clts.deltat(tstart)
+        clts.elapt[f"Connection to {db} Failed, Error: {e}"] = clts.deltat(
+            tstart)
         continue
 
     try:
         if status == "ok":
             cursor.execute(sql, values)
             connection.commit()
+
             print(f"Data inserted into {db} successfully")
-            clts.elapt[f"Data Inserted into {db} Successfully"]=clts.deltat(tstart)
+            clts.elapt[f"Data Inserted into {db} Successfully"] = clts.deltat(
+                tstart)
     except Exception as e:
         print(f"Error inserting data into {db}: {e}")
-        clts.elapt[f"Data Insertion into {db} Failed, Error: {e}"]=clts.deltat(tstart)
-        continue
+        clts.elapt[f"Data Insertion into {db} Failed, Error: {e}"] = clts.deltat(
+            tstart)
 
     connection.close()
     print(f"Connection to {db} closed")
-        
+    clts.elapt[f"Connection to {db} Closed"] = clts.deltat(tstart)
+
 
 toemail = clts.listtimes()
 print(toemail)
@@ -167,13 +203,13 @@ if env == "render":
         })
 
         print("Email sent successfully!")
-        print(f"Email ID: {result['id']}") 
+        print(f"Email ID: {result['id']}")
     except Exception as e:
         print(f"Error sending email: {e}")
         exit(1)
 
 else:
-   
+
     import smtplib
     from email.mime.text import MIMEText
 
