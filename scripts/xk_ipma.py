@@ -7,6 +7,8 @@ import sys
 import requests
 import json
 import clts_pcp as clts
+import pymysql
+
 
 tstart = clts.getts()
 
@@ -76,6 +78,7 @@ for d in data['features']:
 
 print(single_station_data)
 
+
 values = (
     env,
     'IPMA',
@@ -109,38 +112,7 @@ for db in DB_LIST:
             credentials_path = f"secrets/{USER}-{db}.json"
             dbcreds = json.load(open(credentials_path))
 
-        if dbcreds["dbms"] == "crate":
-            sql = """
-            INSERT INTO ipma (
-                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
-                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
-                idDireccVento, descDirVento, precAcumulada
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-            """
-
-            from crate import client
-            clts.elapt[f"Connecting to {db}"] = clts.deltat(tstart)
-            connection = client.connect(dbcreds["host"], username=dbcreds["username"],
-                                        password=dbcreds["password"],             verify_ssl_cert=True, timeout=10)
-            cursor = connection.cursor()
-            print(f"Connected to {db} successfully")
-            clts.elapt[f"Connection to {db} Successful"] = clts.deltat(tstart)
-            status = "ok"
-
-        elif dbcreds["dbms"] == "mysql":
-            sql = """
-                        INSERT INTO ipma (
-                                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
-                                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
-                                idDireccVento, descDirVento, precAcumulada
-                        ) VALUES (
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                        )
-                        """
-            import pymysql
-            clts.elapt[f"Connecting to {db}"] = clts.deltat(tstart)
+        if dbcreds["dbms"] == "mysql":
             connection = pymysql.connect(
                 charset="utf8mb4",
                 connect_timeout=10,
@@ -153,15 +125,64 @@ for db in DB_LIST:
                 user=dbcreds["username"],
                 write_timeout=10,
             )
-            cursor = connection.cursor()
-            print(f"Connected to {db} successfully")
-            clts.elapt[f"Connection to {db} Successful"] = clts.deltat(tstart)
-            status = "ok"
+
+            sql = """
+			INSERT INTO ipma (
+                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
+                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
+                idDireccVento, descDirVento, precAcumulada
+			) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+			)
+			"""
+        elif dbcreds["dbms"] == "tidb":
+
+            connection = pymysql.connect(
+                host=dbcreds["host"],
+                port=dbcreds["port"],
+                user=dbcreds["username"],
+                password=dbcreds["password"],
+                database=dbcreds["database"],
+                ssl_verify_cert=True,
+                ssl_verify_identity=True,
+                ssl_ca=dbcreds["ca_path"],
+            )
+
+            sql = """
+			INSERT INTO ipma (
+                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
+                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
+                idDireccVento, descDirVento, precAcumulada
+			) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+			)
+			"""
+
+        elif dbcreds["dbms"] == "crate":
+            sql = """
+            INSERT INTO ipma (
+                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
+                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
+                idDireccVento, descDirVento, precAcumulada
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            """
+
+            from crate import client
+            connection = client.connect(dbcreds["host"], username=dbcreds["username"],
+                                        password=dbcreds["password"],             verify_ssl_cert=True, timeout=10)
+
     except Exception as e:
         print(f"Error for {db}: {e}")
         clts.elapt[f"Connection to {db} Failed, Error: {e}"] = clts.deltat(
             tstart)
         continue
+
+    cursor = connection.cursor()
+    print(f"Connected to {db} successfully")
+    clts.elapt[f"Connection to {db} Successful"] = clts.deltat(tstart)
+    status = "ok"
 
     try:
         if status == "ok":
