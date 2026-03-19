@@ -7,8 +7,11 @@ import sys
 import requests
 import json
 import clts_pcp as clts
+import socket
+
 
 tstart = clts.getts()
+hostname = socket.gethostname()
 
 
 def detect_environment():
@@ -76,8 +79,9 @@ for d in data['features']:
 
 print(single_station_data)
 
+
 values = (
-    env,
+    hostname,
     'IPMA',
     single_station_data['properties']['idEstacao'],
     single_station_data['properties']['localEstacao'],
@@ -109,38 +113,8 @@ for db in DB_LIST:
             credentials_path = f"secrets/{USER}-{db}.json"
             dbcreds = json.load(open(credentials_path))
 
-        if dbcreds["dbms"] == "crate":
-            sql = """
-            INSERT INTO ipma (
-                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
-                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
-                idDireccVento, descDirVento, precAcumulada
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-            """
-
-            from crate import client
-            clts.elapt[f"Connecting to {db}"] = clts.deltat(tstart)
-            connection = client.connect(dbcreds["host"], username=dbcreds["username"],
-                                        password=dbcreds["password"],             verify_ssl_cert=True, timeout=10)
-            cursor = connection.cursor()
-            print(f"Connected to {db} successfully")
-            clts.elapt[f"Connection to {db} Successful"] = clts.deltat(tstart)
-            status = "ok"
-
-        elif dbcreds["dbms"] == "mysql":
-            sql = """
-                        INSERT INTO ipma (
-                                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
-                                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
-                                idDireccVento, descDirVento, precAcumulada
-                        ) VALUES (
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                        )
-                        """
+        if dbcreds["dbms"] == "mysql":
             import pymysql
-            clts.elapt[f"Connecting to {db}"] = clts.deltat(tstart)
             connection = pymysql.connect(
                 charset="utf8mb4",
                 connect_timeout=10,
@@ -153,24 +127,116 @@ for db in DB_LIST:
                 user=dbcreds["username"],
                 write_timeout=10,
             )
-            cursor = connection.cursor()
-            print(f"Connected to {db} successfully")
-            clts.elapt[f"Connection to {db} Successful"] = clts.deltat(tstart)
-            status = "ok"
+
+            sql = """
+			INSERT INTO ipma (
+                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
+                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
+                idDireccVento, descDirVento, precAcumulada
+			) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+			)
+			"""
+        elif dbcreds["dbms"] == "tidb":
+
+            import pymysql
+            if env == "render":
+                CA_PATH = f"/etc/secrets/{dbcreds['ca_path']}"
+            elif env == "colab":
+                CA_CONTENT = userdata.get(f"{dbcreds['ca_content']}")
+                with open(f"/tmp/{USER}.pem", "w") as f:
+                    f.write(CA_CONTENT)
+                CA_PATH = f"/tmp/{USER}.pem"
+            else:
+                CA_PATH = f"secrets/{dbcreds['ca_path']}"
+
+            connection = pymysql.connect(
+                host=dbcreds["host"],
+                port=dbcreds["port"],
+                user=dbcreds["username"],
+                password=dbcreds["password"],
+                database=dbcreds["database"],
+                cursorclass=pymysql.cursors.DictCursor,
+                ssl_verify_cert=True,
+                ssl_verify_identity=True,
+                ssl_ca=CA_PATH,
+            )
+
+            sql = """
+			INSERT INTO ipma (
+                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
+                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
+                idDireccVento, descDirVento, precAcumulada
+			) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+			)
+			"""
+
+        elif dbcreds["dbms"] == "crate":
+            sql = """
+            INSERT INTO ipma (
+                hostfeed, fonte, idEstacao, localEstacao, lat, lon, tstamp,
+                temperatura, radiacao, humidade, pressao, intensidadeVentoKM,
+                idDireccVento, descDirVento, precAcumulada
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            """
+
+            from crate import client
+            connection = client.connect(dbcreds["host"], username=dbcreds["username"],
+                                        password=dbcreds["password"],             verify_ssl_cert=True, timeout=10)
+
     except Exception as e:
         print(f"Error for {db}: {e}")
         clts.elapt[f"Connection to {db} Failed, Error: {e}"] = clts.deltat(
             tstart)
         continue
 
+    cursor = connection.cursor()
+    print(f"Connected to {db} successfully")
+    clts.elapt[f"Connection to {db} Successful"] = clts.deltat(tstart)
+    status = "ok"
+
     try:
         if status == "ok":
-            cursor.execute(sql, values)
-            connection.commit()
 
-            print(f"Data inserted into {db} successfully")
-            clts.elapt[f"Data Inserted into {db} Successfully"] = clts.deltat(
-                tstart)
+            sql_check_duplicate = """
+            SELECT COUNT(*) AS count FROM ipma
+            WHERE idEstacao = %s AND tstamp = %s
+            """
+
+            values_check_duplicate = (
+                single_station_data['properties']['idEstacao'], single_station_data['properties']['time']
+            )
+
+            if dbcreds["dbms"] == "crate":
+                sql_check_duplicate = """
+                SELECT COUNT(*) AS count FROM ipma
+                WHERE idEstacao = ? AND tstamp = ?
+                """
+
+            cursor.execute(sql_check_duplicate, values_check_duplicate)
+            result = cursor.fetchone()
+
+            if dbcreds["dbms"] == "crate":
+                count = result[0]
+            else:
+                count = result['count']
+
+            if count == 0:
+                cursor.execute(sql, values)
+                connection.commit()
+                print(f"Data inserted into {db} successfully")
+                clts.elapt[f"Data Inserted into {db} Successfully"] = clts.deltat(
+                    tstart)
+            elif count == 1:
+                clts.elapt[f"Data for stationId: {single_station_data['properties']['idEstacao']} and timestamp: {single_station_data['properties']['time']} already exists in {db}, Skipping Insertion"] = clts.deltat(
+                    tstart)
+            else:
+                clts.elapt[f"Duplicate Count in {db} for stationId: {single_station_data['properties']['idEstacao']} and timestamp: {single_station_data['properties']['time']}, count: {count}"] = clts.deltat(
+                    tstart)
+
     except Exception as e:
         print(f"Error inserting data into {db}: {e}")
         clts.elapt[f"Data Insertion into {db} Failed, Error: {e}"] = clts.deltat(
