@@ -7,7 +7,6 @@ import sys
 import requests
 import json
 import clts_pcp as clts
-import pymysql
 import socket
 
 
@@ -115,6 +114,7 @@ for db in DB_LIST:
             dbcreds = json.load(open(credentials_path))
 
         if dbcreds["dbms"] == "mysql":
+            import pymysql
             connection = pymysql.connect(
                 charset="utf8mb4",
                 connect_timeout=10,
@@ -139,6 +139,7 @@ for db in DB_LIST:
 			"""
         elif dbcreds["dbms"] == "tidb":
 
+            import pymysql
             if env == "render":
                 CA_PATH = f"/etc/secrets/{dbcreds['ca_path']}"
             elif env == "colab":
@@ -198,12 +199,31 @@ for db in DB_LIST:
 
     try:
         if status == "ok":
-            cursor.execute(sql, values)
-            connection.commit()
 
-            print(f"Data inserted into {db} successfully")
-            clts.elapt[f"Data Inserted into {db} Successfully"] = clts.deltat(
-                tstart)
+            sql_check_duplicate = """
+            SELECT COUNT(*) AS count FROM ipma
+            WHERE idEstacao = %s AND tstamp = %s
+            """
+
+            values_check_duplicate = (
+                single_station_data['properties']['idEstacao'], single_station_data['properties']['time'])
+
+            cursor.execute(sql_check_duplicate, values_check_duplicate)
+            result = cursor.fetchone()
+
+            if result['count'] == 0:
+                cursor.execute(sql, values)
+                connection.commit()
+                print(f"Data inserted into {db} successfully")
+                clts.elapt[f"Data Inserted into {db} Successfully"] = clts.deltat(
+                    tstart)
+            elif result['count'] == 1:
+                clts.elapt[f"Data for stationId: {single_station_data['properties']['idEstacao']} and timestamp: {single_station_data['properties']['time']} already exists in {db}, Skipping Insertion"] = clts.deltat(
+                    tstart)
+            else:
+                clts.elapt[f"Duplicate Count in {db} for stationId: {single_station_data['properties']['idEstacao']} and timestamp: {single_station_data['properties']['time']}, count: {result['count']}"] = clts.deltat(
+                    tstart)
+
     except Exception as e:
         print(f"Error inserting data into {db}: {e}")
         clts.elapt[f"Data Insertion into {db} Failed, Error: {e}"] = clts.deltat(
