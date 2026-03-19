@@ -8,9 +8,11 @@ import requests
 import json
 import clts_pcp as clts
 import pymysql
+import socket
 
 
 tstart = clts.getts()
+hostname = socket.gethostname()
 
 
 def detect_environment():
@@ -80,7 +82,7 @@ print(single_station_data)
 
 
 values = (
-    env,
+    hostname,
     'IPMA',
     single_station_data['properties']['idEstacao'],
     single_station_data['properties']['localEstacao'],
@@ -137,6 +139,16 @@ for db in DB_LIST:
 			"""
         elif dbcreds["dbms"] == "tidb":
 
+            if env == "render":
+                CA_PATH = f"/etc/secrets/{dbcreds['ca_path']}"
+            elif env == "colab":
+                CA_CONTENT = userdata.get(f"{dbcreds['ca_content']}")
+                with open(f"/tmp/{USER}.pem", "w") as f:
+                    f.write(CA_CONTENT)
+                CA_PATH = f"/tmp/{USER}.pem"
+            else:
+                CA_PATH = f"secrets/{dbcreds['ca_path']}"
+
             connection = pymysql.connect(
                 host=dbcreds["host"],
                 port=dbcreds["port"],
@@ -145,7 +157,7 @@ for db in DB_LIST:
                 database=dbcreds["database"],
                 ssl_verify_cert=True,
                 ssl_verify_identity=True,
-                ssl_ca=dbcreds["ca_path"],
+                ssl_ca=CA_PATH,
             )
 
             sql = """
