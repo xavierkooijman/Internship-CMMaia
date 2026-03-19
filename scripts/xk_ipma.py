@@ -156,6 +156,7 @@ for db in DB_LIST:
                 user=dbcreds["username"],
                 password=dbcreds["password"],
                 database=dbcreds["database"],
+                cursorclass=pymysql.cursors.DictCursor,
                 ssl_verify_cert=True,
                 ssl_verify_identity=True,
                 ssl_ca=CA_PATH,
@@ -206,22 +207,34 @@ for db in DB_LIST:
             """
 
             values_check_duplicate = (
-                single_station_data['properties']['idEstacao'], single_station_data['properties']['time'])
+                single_station_data['properties']['idEstacao'], single_station_data['properties']['time']
+            )
+
+            if dbcreds["dbms"] == "crate":
+                sql_check_duplicate = """
+                SELECT COUNT(*) AS count FROM ipma
+                WHERE idEstacao = ? AND tstamp = ?
+                """
 
             cursor.execute(sql_check_duplicate, values_check_duplicate)
             result = cursor.fetchone()
 
-            if result['count'] == 0:
+            if dbcreds["dbms"] == "crate":
+                count = result[0]
+            else:
+                count = result['count']
+
+            if count == 0:
                 cursor.execute(sql, values)
                 connection.commit()
                 print(f"Data inserted into {db} successfully")
                 clts.elapt[f"Data Inserted into {db} Successfully"] = clts.deltat(
                     tstart)
-            elif result['count'] == 1:
+            elif count == 1:
                 clts.elapt[f"Data for stationId: {single_station_data['properties']['idEstacao']} and timestamp: {single_station_data['properties']['time']} already exists in {db}, Skipping Insertion"] = clts.deltat(
                     tstart)
             else:
-                clts.elapt[f"Duplicate Count in {db} for stationId: {single_station_data['properties']['idEstacao']} and timestamp: {single_station_data['properties']['time']}, count: {result['count']}"] = clts.deltat(
+                clts.elapt[f"Duplicate Count in {db} for stationId: {single_station_data['properties']['idEstacao']} and timestamp: {single_station_data['properties']['time']}, count: {count}"] = clts.deltat(
                     tstart)
 
     except Exception as e:
