@@ -143,9 +143,9 @@ for db in DB_LIST:
             if env == "render":
                 CA_PATH = f"/etc/secrets/{dbcreds['ca_path']}"
             elif env == "colab":
-                CA_CONTENT = userdata.get(f"{dbcreds['ca_content']}")
+                CA_SECRET = userdata.get(f"{dbcreds['ca_path']}")
                 with open(f"/tmp/{USER}.pem", "w") as f:
-                    f.write(CA_CONTENT)
+                    f.write(CA_SECRET)
                 CA_PATH = f"/tmp/{USER}.pem"
             else:
                 CA_PATH = f"secrets/{dbcreds['ca_path']}"
