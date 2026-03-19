@@ -257,7 +257,7 @@ if env == "render":
         result = resend.Emails.send({
             "from": "Acme <onboarding@resend.dev>",
             "to": ["xavierkooijman@gmail.com"],
-            "subject": "Hello from Resend Python!",
+            "subject": "IPMA Weather Station Data Retrieval Report",
             "html": toemail,
         })
 
@@ -278,7 +278,7 @@ else:
 
     try:
         msg = MIMEText(toemail, "html")
-        msg["Subject"] = "Python Email Test"
+        msg["Subject"] = "IPMA Weather Station Data Retrieval Report"
         msg["From"] = EMAIL_FROM
         msg["To"] = receiver
 
