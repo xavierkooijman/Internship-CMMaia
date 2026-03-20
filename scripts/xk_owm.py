@@ -168,7 +168,7 @@ if data_status == "ok":
                     wind_gust_m_s,
                     visibility_meters,
                     cloudiness_percent
-                ) VALUES (%s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                ) VALUES (%s, %s, %s, %s, %s,FROM_UNIXTIME(%s), %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """
             elif dbcreds["dbms"] == "tidb":
 
@@ -212,7 +212,7 @@ if data_status == "ok":
                     wind_gust_m_s,
                     visibility_meters,
                     cloudiness_percent
-                ) VALUES (%s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                ) VALUES (%s, %s, %s, %s, %s,FROM_UNIXTIME(%s), %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """
 
             elif dbcreds["dbms"] == "crate":
