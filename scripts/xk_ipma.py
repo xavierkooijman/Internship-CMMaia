@@ -1,3 +1,209 @@
+"""
+================================================================================
+REQUIRED CONFIGURATION – ENVIRONMENT VARIABLES AND SECRETS
+================================================================================
+
+This script can run in multiple environments (Local, Render, Google Colab).
+Each environment loads configuration and secrets differently.
+
+The  configuration required is documented below.
+
+------------------------------------------------------------------------------
+1. REQUIRED FILES
+------------------------------------------------------------------------------
+
+The following files must exist before running the pipeline(if local or Render). In Colab, these files are not required. Instead for some of these files, their contents must be stored in google.colab.userdata as described in the Colab section.
+
+Project root
+------------
+requirements.txt        Python dependencies
+scripts/xk_ipma.py              IPMA ingestion script(example script, can be replaced by any other data retrieval script with similar structure)
+USER-dblist.json
+
+User database list
+------------------
+USER-dblist.json
+
+Example:
+xavier-dblist.json
+
+Format:
+{
+  "databases": ["crate", "aiven", "tidb"]
+}
+
+Each name corresponds to a credentials file.
+
+Secrets directory
+-----------------
+secrets/USER-db.json
+
+Examples:
+secrets/xavier-aiven.json
+secrets/xavier-crate.json
+secrets/xavier-tidb.json
+
+Required if using TiDB (TiDB TLS certificate):
+secrets/certificate.pem
+
+
+------------------------------------------------------------------------------
+2. DATABASE CREDENTIAL FILES
+------------------------------------------------------------------------------
+
+Each database defined in USER-dblist.json must have a credentials file.
+
+Example filename:
+secrets/USER-dbname.json
+
+Example:
+secrets/xavier-aiven.json
+
+
+MySQL format
+------------
+{
+  "host": "...",
+  "port": xxxx,
+  "database": "...",
+  "username": "...",
+  "password": "...",
+  "dbms": "mysql"
+}
+
+
+CrateDB format
+--------------
+{
+  "host": "...",
+  "username": "...",
+  "password": "...",
+  "dbms": "crate"
+}
+
+
+TiDB format
+-----------
+{
+  "host": "...",
+  "port": xxxx,
+  "database": "...",
+  "username": "...",
+  "password": "...",
+  "ca_path": "certificate.pem",
+  "dbms": "tidb"
+}
+
+If TiDB is used locally, ensure the CA certificate exists in the secrets folder.
+
+
+------------------------------------------------------------------------------
+3. REQUIRED ENVIRONMENT VARIABLES
+------------------------------------------------------------------------------
+
+
+
+LOCAL (Windows / Linux)
+-----------------------
+
+Variables are loaded from a .env file using python-dotenv.
+
+Required variables:
+
+USER
+EMAIL_FROM
+EMAIL_PASSWORD
+DATA_PROVIDER_API_KEY(if api requires it, example: OpenWeatherMap)
+
+
+Example .env file:
+
+USER=xavier
+EMAIL_FROM=example@gmail.com
+EMAIL_PASSWORD=app_password
+OPEN_WEATHER_MAP_API_KEY=xxxxxxxx
+
+
+
+RENDER
+------
+
+Variables are configured in the Render panel.
+
+Required variables:
+
+USER
+EMAIL_FROM
+RESEND_API_KEY
+DATA_PROVIDER_API_KEY(if api requires it, example: OpenWeatherMap)
+
+Secret files must be uploaded to the Render panel and will be saved in:
+
+/etc/secrets/
+
+Example paths:
+
+/etc/secrets/xavier-dblist.json
+/etc/secrets/xavier-aiven.json
+/etc/secrets/xavier-crate.json
+/etc/secrets/xavier-tidb.json
+
+
+
+GOOGLE COLAB
+------------
+
+
+All variables and secrets are stored in:
+
+google.colab.userdata
+
+Required keys:
+
+USER
+EMAIL_FROM
+EMAIL_PASSWORD
+DATA_PROVIDER_API_KEY(if api requires it, example: OpenWeatherMap)
+
+Additionally store JSON contents for:
+
+USER-dblist.json
+USER-db.json
+
+
+Example access in code:
+
+from google.colab import userdata
+
+USER = userdata.get("USER")
+DB_LIST = json.loads(userdata.get(f"{USER}-dblist.json"))["databases"]
+
+
+
+------------------------------------------------------------------------------
+4. EMAIL DELIVERY DIFFERENCE
+------------------------------------------------------------------------------
+
+Email sending depends on the environment.
+
+Render
+------
+Uses Resend API (HTTP) because SMTP(465, 587) ports are blocked in Render free tier.
+
+Required variable:
+RESEND_API_KEY
+
+
+Local / Linux / Colab
+---------------------
+Uses  SMTP. Ensure that the email provider allows SMTP access and that credentials are correct.
+
+Required variables:
+EMAIL_FROM
+EMAIL_PASSWORD
+"""
+
+
 #!pip install clts_pcp --quiet
 #!pip install crate --quiet
 #!pip install pymysql --quiet
