@@ -8,6 +8,7 @@ import requests
 import json
 import clts_pcp as clts
 import socket
+from datetime import datetime
 
 
 tstart = clts.getts()
@@ -109,7 +110,7 @@ if data_status == "ok":
         weather_data["name"],
         weather_data["coord"]["lon"],
         weather_data["coord"]["lat"],
-        weather_data["dt"],
+        datetime.fromtimestamp(weather_data["dt"]),
         weather_data["main"]["temp"],
         weather_data["main"].get("sea_level"),
         weather_data["main"].get("grnd_level"),
@@ -118,7 +119,8 @@ if data_status == "ok":
         weather_data["wind"]["deg"],
         weather_data.get("wind", {}).get("gust"),
         weather_data["visibility"],
-        weather_data["clouds"]["all"]
+        weather_data["clouds"]["all"],
+        weather_data["dt"] * 1000
     )
 
     for db in DB_LIST:
@@ -167,8 +169,9 @@ if data_status == "ok":
                     wind_direction_deg,
                     wind_gust_m_s,
                     visibility_meters,
-                    cloudiness_percent
-                ) VALUES (%s, %s, %s, %s, %s,FROM_UNIXTIME(%s), %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    cloudiness_percent,
+                    tstamp_ms
+                ) VALUES (%s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """
             elif dbcreds["dbms"] == "tidb":
 
@@ -211,8 +214,9 @@ if data_status == "ok":
                     wind_direction_deg,
                     wind_gust_m_s,
                     visibility_meters,
-                    cloudiness_percent
-                ) VALUES (%s, %s, %s, %s, %s,FROM_UNIXTIME(%s), %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    cloudiness_percent,
+                    tstamp_ms
+                ) VALUES (%s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """
 
             elif dbcreds["dbms"] == "crate":
@@ -232,8 +236,9 @@ if data_status == "ok":
                     wind_direction_deg,
                     wind_gust_m_s,
                     visibility_meters,
-                    cloudiness_percent
-                ) VALUES (?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    cloudiness_percent,
+                    tstamp_ms
+                ) VALUES (?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """
 
                 from crate import client
