@@ -6,3 +6,4 @@ crate
 pymysql
 cryptography
 flask
+gunicorn
