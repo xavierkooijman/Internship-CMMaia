@@ -1,8 +1,18 @@
 from flask import Flask, request, jsonify
 import os
 import subprocess
+import sys
 
 app = Flask(__name__)
+
+
+def run_script(script_path):
+    return subprocess.run(
+        [sys.executable, script_path],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.abspath(__file__))
+    )
 
 
 def verify_password(password):
@@ -29,8 +39,7 @@ def xk_ipma():
         return jsonify({'error': 'Invalid password'}), 401
 
     try:
-        result = subprocess.run(
-            ['python', 'scripts/xk_ipma.py'], capture_output=True, text=True)
+        result = run_script('scripts/xk_ipma.py')
 
         return jsonify({
             "status": "completed",
@@ -46,7 +55,7 @@ def xk_ipma():
 
 
 @app.route('/xk_owm', methods=['POST'])
-def xk_ipma():
+def xk_owm():
     data = request.json
     if not data or 'password' not in data:
         return jsonify({'error': 'Password is required'}), 400
@@ -55,8 +64,7 @@ def xk_ipma():
         return jsonify({'error': 'Invalid password'}), 401
 
     try:
-        result = subprocess.run(
-            ['python', 'scripts/xk_owm.py'], capture_output=True, text=True)
+        result = run_script('scripts/xk_owm.py')
 
         return jsonify({
             "status": "completed",
