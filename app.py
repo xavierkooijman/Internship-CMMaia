@@ -42,11 +42,8 @@ def xk_ipma():
         result = run_script('scripts/xk_ipma.py')
 
         return jsonify({
-            "status": "completed",
-            "returncode": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr
-        })
+            "status": "completed"
+        }), 200
 
     except Exception as e:
         return jsonify({
@@ -67,11 +64,8 @@ def xk_owm():
         result = run_script('scripts/xk_owm.py')
 
         return jsonify({
-            "status": "completed",
-            "returncode": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr
-        })
+            "status": "completed"
+        }), 200
 
     except Exception as e:
         return jsonify({
