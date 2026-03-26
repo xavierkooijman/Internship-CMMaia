@@ -2,6 +2,9 @@
 #!pip install crate --quiet
 #!pip install pymysql --quiet
 #!pip install cryptography --quiet
+#!pip install geopandas --quiet
+#!pip install shapely --quiet
+#!pip install ipynbname --quiet
 import os
 import sys
 import requests
@@ -11,7 +14,6 @@ import socket
 from datetime import datetime
 import geopandas as gpd
 from shapely.geometry import Point
-import uuid
 
 
 tstart = clts.getts()
@@ -62,15 +64,21 @@ env = detect_environment()
 clts.elapt[f"Environment Detected: {env}"] = clts.deltat(tstart)
 print("Running in:", env)
 
+if "__file__" in globals():
+    filename = os.path.basename(__file__)
+else:
+    import ipynbname
+    filename = ipynbname.name()
+
 if env == "colab":
     from google.colab import userdata
-    USER = userdata.get("USER")
+    USER = filename.split("_")[0]
     EMAIL_FROM = userdata.get("EMAIL_FROM")
     EMAIL_PASSWORD = userdata.get("EMAIL_PASSWORD")
     DB_LIST = json.loads(userdata.get(f"{USER}-dblist.json"))["databases"]
 
 elif env == "render":
-    USER = os.getenv("USER")
+    USER = filename.split("_")[0]
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     RESEND_API_KEY = os.getenv("RESEND_API_KEY")
     DB_LIST = json.load(open(f"/etc/secrets/{USER}-dblist.json"))["databases"]
@@ -79,7 +87,7 @@ else:
     from dotenv import load_dotenv
     load_dotenv()
 
-    USER = os.getenv("USER")
+    USER = filename.split("_")[0]
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
     DB_LIST = json.load(open(f"{USER}-dblist.json"))["databases"]
@@ -87,6 +95,8 @@ else:
 
 clts.setcontext(
     f'ServerGeo Postos de Abastecimento Data Retrieval - Environment: {env}')
+
+print(USER)
 
 
 url = f'https://servergeo.dgeg.gov.pt/arcgis/services/Visualizadores/PACVR/MapServer/WFSServer?request=GetFeature&service=WFS&typename=PACVR:Postos_Abastecimento&outputFormat=GEOJSON'

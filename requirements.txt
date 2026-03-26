@@ -9,3 +9,4 @@ flask
 gunicorn
 geopandas
 shapely
+ipynbname
