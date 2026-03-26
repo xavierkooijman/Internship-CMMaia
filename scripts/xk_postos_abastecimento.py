@@ -11,6 +11,7 @@ import socket
 from datetime import datetime
 import geopandas as gpd
 from shapely.geometry import Point
+import uuid
 
 
 tstart = clts.getts()
@@ -39,7 +40,7 @@ def filter_coordinates_within_maia(data):
 
     gdf_points = gpd.GeoDataFrame([
         {
-            "global_id": feature["properties"]["globalid"].strip("{}"),
+            "globalid": feature["properties"]["globalid"].strip("{}"),
             "marca": feature["properties"]["Marca"],
             "geometry": Point(feature["geometry"]["coordinates"])
 
@@ -106,26 +107,35 @@ except Exception as e:
     clts.elapt[f"Postos de Abastecimento Data Retrieval Failed, Error: {e}"] = clts.deltat(
         tstart)
 
-filtered_data = filter_coordinates_within_maia(data)
-print(filtered_data)
 
-'''
 if data_status == "ok":
 
+    filtered_rows = filter_coordinates_within_maia(data)
+
+    current_timestamp = datetime.now().isoformat()
+
     values = []
-    for feature in data["features"]:
-        coords = feature["geometry"]["coordinates"]
-        marca = feature["properties"]["Marca"]
-        global_id = feature["properties"]["globalid"].strip("{}")
-        values.append((
-            global_id,
-            hostname,
-            "servergeo_dgeg",
-            marca,
-            coords[0],
-            coords[1],
-            datetime.utcnow().isoformat(),
-        ))
+    values_check_duplicate = []
+
+    for idx, row in filtered_rows.iterrows():
+        values.append(
+            (
+                row["globalid"],
+                hostname,
+                "ServerGeo GDEG",
+                row.geometry.y,
+                row.geometry.x,
+                row["marca"],
+                current_timestamp,
+            )
+        )
+        values_check_duplicate.append(
+            (
+                row["globalid"],
+            )
+        )
+
+    print(values)
 
     for db in DB_LIST:
         print(f"Processing database: {db}")
@@ -158,25 +168,11 @@ if data_status == "ok":
                 )
 
                 sql = """
-                INSERT INTO openWeatherMap (
-                    hostfeed,
-                    source,
-                    station_location,
-                    lon,
-                    lat,
-                    tstamp,
-                    temperature,
-                    sea_level_pressure,
-                    ground_level_pressure,
-                    humidity_percent,
-                    wind_speed_m_s,
-                    wind_direction_deg,
-                    wind_gust_m_s,
-                    visibility_meters,
-                    cloudiness_percent,
-                    tstamp_ms
-                ) VALUES (%s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                INSERT INTO postos_abastecimento
+                (globalId, hostfeed, source, lat, lon, marca, tstamp)
+                VALUES (UUID_TO_BIN(%s), %s, %s, %s, %s, %s, %s)
                 """
+
             elif dbcreds["dbms"] == "tidb":
 
                 import pymysql
@@ -203,46 +199,16 @@ if data_status == "ok":
                 )
 
                 sql = """
-                INSERT INTO openWeatherMap (
-                    hostfeed,
-                    source,
-                    station_location,
-                    lon,
-                    lat,
-                    tstamp,
-                    temperature,
-                    sea_level_pressure,
-                    ground_level_pressure,
-                    humidity_percent,
-                    wind_speed_m_s,
-                    wind_direction_deg,
-                    wind_gust_m_s,
-                    visibility_meters,
-                    cloudiness_percent,
-                    tstamp_ms
-                ) VALUES (%s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                INSERT INTO postos_abastecimento
+                (globalId, hostfeed, source, lat, lon, marca, tstamp)
+                VALUES (UUID_TO_BIN(%s), %s, %s, %s, %s, %s, %s)
                 """
 
             elif dbcreds["dbms"] == "crate":
                 sql = """
-                INSERT INTO openWeatherMap (
-                    hostfeed,
-                    source,
-                    station_location,
-                    lon,
-                    lat,
-                    tstamp,
-                    temperature,
-                    sea_level_pressure,
-                    ground_level_pressure,
-                    humidity_percent,
-                    wind_speed_m_s,
-                    wind_direction_deg,
-                    wind_gust_m_s,
-                    visibility_meters,
-                    cloudiness_percent,
-                    tstamp_ms
-                ) VALUES (?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                INSERT INTO postos_abastecimento
+                (globalId, hostfeed, source, lat, lon, marca, tstamp)
+                VALUES (cast(? as uuid), ?, ?, ?, ?, ?, ?)
                 """
 
                 from crate import client
@@ -263,47 +229,18 @@ if data_status == "ok":
         try:
             if status == "ok":
 
-                sql_check_duplicate = """
-                SELECT COUNT(*) AS count FROM openWeatherMap
-                WHERE station_location = %s AND tstamp = %s
-                """
-
-                values_check_duplicate = (
-                    weather_data["name"], weather_data['dt']
-                )
-
-                if dbcreds["dbms"] == "crate":
-                    sql_check_duplicate = """
-                    SELECT COUNT(*) AS count FROM openWeatherMap
-                    WHERE station_location = ? AND tstamp = ?
-                    """
-
-                cursor.execute(sql_check_duplicate, values_check_duplicate)
-                result = cursor.fetchone()
-
-                if dbcreds["dbms"] == "crate":
-                    count = result[0]
-                else:
-                    count = result['count']
-
-                if count == 0:
-                    cursor.execute(sql, values)
-                    connection.commit()
-                    print(f"Data inserted into {db} successfully")
-                    clts.elapt[f"Data Inserted into {db} Successfully"] = clts.deltat(
-                        tstart)
-                elif count == 1:
-                    clts.elapt[f"Data for station: {weather_data["name"]} and timestamp: {weather_data["dt"]} already exists in {db}, Skipping Insertion"] = clts.deltat(
-                        tstart)
-                else:
-                    clts.elapt[f"Duplicate Count in {db} for station: {weather_data["name"]} and timestamp: {weather_data["dt"]}, count: {count}"] = clts.deltat(
-                        tstart)
+                cursor.executemany(sql, values)
+                connection.commit()
+                print(f"Data inserted into {db} successfully")
+                clts.elapt[f"Data Inserted into {db} Successfully"] = clts.deltat(
+                    tstart)
 
         except Exception as e:
             print(f"Error inserting data into {db}: {e}")
             clts.elapt[f"Data Insertion into {db} Failed, Error: {e}"] = clts.deltat(
                 tstart)
 
+        cursor.close()
         connection.close()
         print(f"Connection to {db} closed")
         clts.elapt[f"Connection to {db} Closed"] = clts.deltat(tstart)
@@ -352,4 +289,3 @@ else:
         print("Email sent!")
     except Exception as e:
         print(f"Error sending email: {e}")
-        '''
