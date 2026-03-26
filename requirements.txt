@@ -7,3 +7,5 @@ pymysql
 cryptography
 flask
 gunicorn
+geopandas
+shapely
