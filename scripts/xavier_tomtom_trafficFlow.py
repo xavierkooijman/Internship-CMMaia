@@ -157,7 +157,7 @@ if data_status == "ok":
                     free_flow_travel_time,
                     confidence,
                     road_closure,
-                    coordinates
+                    geometry
                 ) VALUES (%s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s, %s);
                 """
             elif dbcreds["dbms"] == "tidb":
@@ -198,7 +198,7 @@ if data_status == "ok":
                     free_flow_travel_time,
                     confidence,
                     road_closure,
-                    coordinates
+                    geometry
                 ) VALUES (%s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s, %s);
                 """
 
@@ -216,7 +216,7 @@ if data_status == "ok":
                     free_flow_travel_time,
                     confidence,
                     road_closure,
-                    coordinates
+                    geometry
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """
 
