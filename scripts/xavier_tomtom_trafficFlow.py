@@ -145,7 +145,7 @@ if data_status == "ok":
                 )
 
                 sql = """
-                INSERT INTO tomtom_trafficFlow (
+                INSERT INTO tomtom_traffic_flow (
                     hostfeed,
                     source,
                     tstamp,
@@ -186,7 +186,7 @@ if data_status == "ok":
                 )
 
                 sql = """
-                INSERT INTO tomtom_trafficFlow (
+                INSERT INTO tomtom_traffic_flow (
                     hostfeed,
                     source,
                     tstamp,
@@ -204,7 +204,7 @@ if data_status == "ok":
 
             elif dbcreds["dbms"] == "crate":
                 sql = """
-                INSERT INTO tomtom_trafficFlow (
+                INSERT INTO tomtom_traffic_flow (
                     hostfeed,
                     source,
                     tstamp,
@@ -239,7 +239,7 @@ if data_status == "ok":
             if status == "ok":
 
                 sql_check_duplicate = """
-                SELECT COUNT(*) AS count FROM tomtom_trafficFlow
+                SELECT COUNT(*) AS count FROM tomtom_traffic_flow
                 WHERE lat = %s AND lon = %s AND tstamp = %s
                 """
 
@@ -249,7 +249,7 @@ if data_status == "ok":
 
                 if dbcreds["dbms"] == "crate":
                     sql_check_duplicate = """
-                    SELECT COUNT(*) AS count FROM tomtom_trafficFlow
+                    SELECT COUNT(*) AS count FROM tomtom_traffic_flow
                     WHERE lat = ? AND lon = ? AND tstamp = ?
                     """
 
