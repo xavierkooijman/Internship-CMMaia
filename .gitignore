@@ -4,5 +4,6 @@ __pycache__/
 
 .env
 secrets/
-xavier-dblist.json
+*.geojson
+*.json
 *.pem

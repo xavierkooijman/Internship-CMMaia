@@ -38,6 +38,8 @@ if env == "colab":
     EMAIL_PASSWORD = userdata.get("EMAIL_PASSWORD")
     OPEN_WEATHER_MAP_API_KEY = userdata.get("OPEN_WEATHER_MAP_API_KEY")
     DB_LIST = json.loads(userdata.get(f"{USER}-dblist.json"))["databases"]
+    RECEIVERS_LIST = json.loads(userdata.get(
+        f"{USER}-receiverslist.json"))["receivers"]
 
 elif env == "render":
     USER = os.getenv("USER")
@@ -45,6 +47,8 @@ elif env == "render":
     RESEND_API_KEY = os.getenv("RESEND_API_KEY")
     OPEN_WEATHER_MAP_API_KEY = os.getenv("OPEN_WEATHER_MAP_API_KEY")
     DB_LIST = json.load(open(f"/etc/secrets/{USER}-dblist.json"))["databases"]
+    RECEIVERS_LIST = json.load(
+        open(f"/etc/secrets/{USER}-receiverslist.json"))["receivers"]
 
 else:
     from dotenv import load_dotenv
@@ -55,6 +59,7 @@ else:
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
     OPEN_WEATHER_MAP_API_KEY = os.getenv("OPEN_WEATHER_MAP_API_KEY")
     DB_LIST = json.load(open(f"{USER}-dblist.json"))["databases"]
+    RECEIVERS_LIST = json.load(open(f"{USER}-receiverslist.json"))["receivers"]
 
 
 clts.setcontext(
@@ -332,18 +337,17 @@ else:
 
     SMTP_SERVER = "smtp.gmail.com"
     SMTP_PORT = 587
-    receiver = "xavierkooijman@gmail.com"
 
     try:
         msg = MIMEText(toemail, "html")
         msg["Subject"] = "OpenWeatherMap Weather Station Data Retrieval Report"
         msg["From"] = EMAIL_FROM
-        msg["To"] = receiver
+        msg["To"] = ", ".join(RECEIVERS_LIST)
 
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(EMAIL_FROM, EMAIL_PASSWORD)
-            server.sendmail(EMAIL_FROM, receiver, msg.as_string())
+            server.sendmail(EMAIL_FROM, RECEIVERS_LIST, msg.as_string())
 
         print("Email sent!")
     except Exception as e:
