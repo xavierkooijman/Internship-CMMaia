@@ -31,8 +31,9 @@ def detect_environment():
         return "linux"
 
 
-def filter_coordinates_within_maia(data, maia_gdf):
+def filter_coordinates_within_maia(data):
     clts.elapt["Filter Coordinates within Maia"] = clts.deltat(tstart)
+    maia_gdf = gpd.read_file("maia_polygon.geojson").to_crs(epsg=4326)
     maia_polygon = maia_gdf.geometry.iloc[0]
     minx, miny, maxx, maxy = maia_polygon.bounds
 
@@ -83,21 +84,21 @@ print(f"User detected: {USER}")
 
 if env == "colab":
     from google.colab import userdata
+    from google.colab import files
+
     EMAIL_FROM = userdata.get("EMAIL_FROM")
     EMAIL_PASSWORD = userdata.get("EMAIL_PASSWORD")
     DB_LIST = json.loads(userdata.get(f"{USER}-dblist.json"))["databases"]
-    geojson_str = userdata.get("maia_polygon.geojson")
-    geojson_dict = json.loads(geojson_str)
-    maia_gdf = gpd.GeoDataFrame.from_features(
-        geojson_dict["features"]
-    ).set_crs(epsg=4326)
+    RECEIVERS_LIST = json.loads(userdata.get(
+        f"{USER}-receiverslist.json"))["receivers"]
+    uploaded = files.upload()
 
 elif env == "render":
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     RESEND_API_KEY = os.getenv("RESEND_API_KEY")
     DB_LIST = json.load(open(f"/etc/secrets/{USER}-dblist.json"))["databases"]
-    maia_gdf = gpd.read_file("maia_polygon.geojson").to_crs(epsg=4326)
-
+    RECEIVERS_LIST = json.load(
+        open(f"/etc/secrets/{USER}-receiverslist.json"))["receivers"]
 
 else:
     from dotenv import load_dotenv
@@ -106,7 +107,7 @@ else:
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
     DB_LIST = json.load(open(f"{USER}-dblist.json"))["databases"]
-    maia_gdf = gpd.read_file("maia_polygon.geojson").to_crs(epsg=4326)
+    RECEIVERS_LIST = json.load(open(f"{USER}-receiverslist.json"))["receivers"]
 
 
 clts.setcontext(
@@ -134,7 +135,7 @@ except Exception as e:
 
 if data_status == "ok":
 
-    filtered_rows = filter_coordinates_within_maia(data, maia_gdf)
+    filtered_rows = filter_coordinates_within_maia(data)
 
     current_timestamp = datetime.now().isoformat()
 
@@ -280,7 +281,7 @@ if env == "render":
         result = resend.Emails.send({
             "from": "Acme <onboarding@resend.dev>",
             "to": ["xavierkooijman@gmail.com"],
-            "subject": "OpenWeatherMap Weather Station Data Retrieval Report",
+            "subject": "ServerGeo Postos de Abastecimento Data Retrieval Report",
             "html": toemail,
         })
 
@@ -297,18 +298,17 @@ else:
 
     SMTP_SERVER = "smtp.gmail.com"
     SMTP_PORT = 587
-    receiver = "xavierkooijman@gmail.com"
 
     try:
         msg = MIMEText(toemail, "html")
-        msg["Subject"] = "OpenWeatherMap Weather Station Data Retrieval Report"
+        msg["Subject"] = " ServerGeo Postos de Abastecimento Data Retrieval Report"
         msg["From"] = EMAIL_FROM
-        msg["To"] = receiver
+        msg["To"] = ", ".join(RECEIVERS_LIST)
 
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(EMAIL_FROM, EMAIL_PASSWORD)
-            server.sendmail(EMAIL_FROM, receiver, msg.as_string())
+            server.sendmail(EMAIL_FROM, RECEIVERS_LIST, msg.as_string())
 
         print("Email sent!")
     except Exception as e:
