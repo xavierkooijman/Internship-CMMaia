@@ -4,7 +4,6 @@
 #!pip install cryptography --quiet
 #!pip install geopandas --quiet
 #!pip install shapely --quiet
-#!pip install ipynbname --quiet
 import os
 import sys
 import requests
@@ -32,11 +31,8 @@ def detect_environment():
         return "linux"
 
 
-def filter_coordinates_within_maia(data):
+def filter_coordinates_within_maia(data, maia_gdf):
     clts.elapt["Filter Coordinates within Maia"] = clts.deltat(tstart)
-    clts.elapt["Load Maia Polygon"] = clts.deltat(tstart)
-    maia_gdf = gpd.read_file("maia_polygon.geojson").to_crs(epsg=4326)
-    clts.elapt["Maia Polygon Loaded"] = clts.deltat(tstart)
     maia_polygon = maia_gdf.geometry.iloc[0]
     minx, miny, maxx, maxy = maia_polygon.bounds
 
@@ -60,43 +56,61 @@ def filter_coordinates_within_maia(data):
     return gdf_filtered
 
 
+def get_user():
+    if "__file__" in globals():
+        filename = os.path.basename(__file__)
+
+    else:
+        try:
+            sessions = requests.get(
+                "http://172.28.0.12:9000/api/sessions").json()
+            filename = sessions[0]["name"]
+        except:
+            filename = os.path.basename(sys.argv[0])
+
+    if "_" in filename:
+        return filename.split("_")[0]
+
+    return None
+
+
 env = detect_environment()
 clts.elapt[f"Environment Detected: {env}"] = clts.deltat(tstart)
 print("Running in:", env)
 
-if "__file__" in globals():
-    filename = os.path.basename(__file__)
-else:
-    import ipynbname
-    filename = ipynbname.name()
+USER = get_user()
+print(f"User detected: {USER}")
 
 if env == "colab":
     from google.colab import userdata
-    USER = filename.split("_")[0]
     EMAIL_FROM = userdata.get("EMAIL_FROM")
     EMAIL_PASSWORD = userdata.get("EMAIL_PASSWORD")
     DB_LIST = json.loads(userdata.get(f"{USER}-dblist.json"))["databases"]
+    geojson_str = userdata.get("maia_polygon.geojson")
+    geojson_dict = json.loads(geojson_str)
+    maia_gdf = gpd.GeoDataFrame.from_features(
+        geojson_dict["features"]
+    ).set_crs(epsg=4326)
 
 elif env == "render":
-    USER = filename.split("_")[0]
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     RESEND_API_KEY = os.getenv("RESEND_API_KEY")
     DB_LIST = json.load(open(f"/etc/secrets/{USER}-dblist.json"))["databases"]
+    maia_gdf = gpd.read_file("maia_polygon.geojson").to_crs(epsg=4326)
+
 
 else:
     from dotenv import load_dotenv
     load_dotenv()
 
-    USER = filename.split("_")[0]
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
     DB_LIST = json.load(open(f"{USER}-dblist.json"))["databases"]
+    maia_gdf = gpd.read_file("maia_polygon.geojson").to_crs(epsg=4326)
 
 
 clts.setcontext(
     f'ServerGeo Postos de Abastecimento Data Retrieval - Environment: {env}')
-
-print(USER)
 
 
 url = f'https://servergeo.dgeg.gov.pt/arcgis/services/Visualizadores/PACVR/MapServer/WFSServer?request=GetFeature&service=WFS&typename=PACVR:Postos_Abastecimento&outputFormat=GEOJSON'
@@ -120,7 +134,7 @@ except Exception as e:
 
 if data_status == "ok":
 
-    filtered_rows = filter_coordinates_within_maia(data)
+    filtered_rows = filter_coordinates_within_maia(data, maia_gdf)
 
     current_timestamp = datetime.now().isoformat()
 
